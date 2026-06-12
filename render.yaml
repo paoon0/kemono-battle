@@ -1,0 +1,17 @@
+# Render Blueprint - これをGitHubに含めると「Blueprint」から一括作成できます
+services:
+  - type: web
+    name: kemono-battle
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kemono-db
+          property: connectionString
+
+databases:
+  - name: kemono-db
+    plan: free

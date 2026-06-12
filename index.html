@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>けものバトル - 動物格闘アクション</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: #1a1026;
+    font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+    color: #fff;
+    overflow: hidden;
+    user-select: none;
+  }
+  #app {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+  #game {
+    position: relative;
+    width: 960px;
+    height: 540px;
+    background: #000;
+    box-shadow: 0 0 60px rgba(120,60,200,.5);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: radial-gradient(circle at 50% 30%, #3a2160, #160c24);
+    z-index: 10;
+  }
+  .hidden { display: none !important; }
+  h1 {
+    font-size: 58px;
+    letter-spacing: 4px;
+    background: linear-gradient(90deg,#ffd86b,#ff7eb3,#7ee8fa);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 4px 18px rgba(255,150,200,.3);
+    margin-bottom: 6px;
+  }
+  .sub { color: #c9b8e8; font-size: 16px; margin-bottom: 28px; letter-spacing:2px;}
+  .btn {
+    background: linear-gradient(180deg,#ff9a5a,#ff5e7e);
+    border: none; color: #fff; font-weight: bold;
+    padding: 14px 38px; font-size: 20px; border-radius: 999px;
+    cursor: pointer; margin: 8px; letter-spacing: 2px;
+    box-shadow: 0 6px 0 rgba(150,30,60,.6);
+    transition: transform .08s;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(150,30,60,.6);}
+  .btn.alt { background: linear-gradient(180deg,#6ad7ff,#5a7bff); box-shadow:0 6px 0 rgba(40,60,150,.6);}
+  .controls {
+    margin-top: 20px; font-size: 13px; color:#b6a6d6; line-height:1.9;
+    background: rgba(0,0,0,.25); padding:14px 22px; border-radius:12px;
+  }
+  .controls b { color:#ffd86b; }
+
+  /* キャラ選択 */
+  .roster { display:flex; gap:16px; margin: 14px 0 8px; }
+  .card {
+    width: 150px; background: rgba(255,255,255,.06);
+    border: 3px solid transparent; border-radius: 14px;
+    padding: 14px 10px; cursor:pointer; transition: .12s;
+  }
+  .card:hover { transform: translateY(-4px); background: rgba(255,255,255,.12);}
+  .card.sel { border-color:#ffd86b; background: rgba(255,216,107,.15);}
+  .card .emoji { font-size: 54px; }
+  .card .nm { font-size:18px; font-weight:bold; margin:6px 0 8px;}
+  .stat { font-size:11px; color:#cfc; text-align:left; margin:2px 6px;}
+  .bar { height:6px; background:#333; border-radius:3px; overflow:hidden; margin-top:2px;}
+  .bar > i { display:block; height:100%; background:linear-gradient(90deg,#7ee8fa,#ff7eb3);}
+  .pick-label{ font-size:14px; color:#ffd86b; letter-spacing:2px; }
+
+  #result h1 { font-size:72px; }
+  .small { font-size:14px; color:#b6a6d6; margin-top:18px;}
+
+  /* アカウント関連 */
+  #accountBar {
+    position:absolute; top:12px; right:14px; z-index:20;
+    display:flex; align-items:center; gap:10px; font-size:14px;
+    background: rgba(0,0,0,.35); padding:8px 14px; border-radius:999px;
+  }
+  #accountBar .who { color:#ffd86b; font-weight:bold; }
+  #accountBar .rec { color:#bda; font-size:12px; }
+  .minibtn {
+    background:rgba(255,255,255,.15); border:none; color:#fff;
+    padding:5px 12px; border-radius:999px; cursor:pointer; font-size:12px;
+  }
+  .minibtn:hover { background:rgba(255,255,255,.3); }
+
+  .form { display:flex; flex-direction:column; gap:12px; width:300px; margin:8px 0 4px; }
+  .form input {
+    padding:12px 16px; border-radius:10px; border:2px solid #5a4a7a;
+    background:#251a3a; color:#fff; font-size:16px; outline:none;
+  }
+  .form input:focus { border-color:#ffd86b; }
+  .tabrow { display:flex; gap:8px; margin-bottom:6px; }
+  .tab {
+    flex:1; padding:8px; border-radius:8px; cursor:pointer; background:rgba(255,255,255,.08);
+    color:#cbb; font-size:14px;
+  }
+  .tab.on { background:#ffd86b; color:#3a2160; font-weight:bold; }
+  .msg { color:#ff8a9a; font-size:13px; min-height:18px; }
+  .msg.ok { color:#8df0a0; }
+
+  /* ランキング */
+  table.rank { border-collapse:collapse; margin:10px 0; min-width:420px; }
+  table.rank th, table.rank td { padding:8px 14px; text-align:center; font-size:15px; }
+  table.rank th { color:#ffd86b; border-bottom:2px solid #5a4a7a; }
+  table.rank td { border-bottom:1px solid rgba(255,255,255,.08); }
+  table.rank tr.mine td { background:rgba(255,216,107,.15); color:#fff; }
+  table.rank .rk { font-weight:bold; color:#ffd86b; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="game">
+    <canvas id="cv" width="960" height="540"></canvas>
+
+    <!-- アカウント状態バー -->
+    <div id="accountBar" class="hidden">
+      <span class="who" id="accWho"></span>
+      <span class="rec" id="accRec"></span>
+      <button class="minibtn" id="accLogout">ログアウト</button>
+    </div>
+
+    <!-- タイトル -->
+    <div id="title" class="screen">
+      <h1>けものバトル</h1>
+      <div class="sub">ANIMAL FIGHTING ACTION</div>
+      <div>
+        <button class="btn" id="btn1p">1人プレイ (VS CPU)</button>
+        <button class="btn alt" id="btn2p">2人対戦</button>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="minibtn" id="btnAccount" style="padding:8px 18px;font-size:14px;">ログイン / 新規登録</button>
+        <button class="minibtn" id="btnRanking" style="padding:8px 18px;font-size:14px;">🏆 ランキング</button>
+      </div>
+      <div class="controls">
+        <b>1P:</b> 移動 A / D &nbsp; ジャンプ W &nbsp; ガード S &nbsp; パンチ F &nbsp; キック G &nbsp; 必殺 H<br>
+        <b>2P:</b> 移動 ← / → &nbsp; ジャンプ ↑ &nbsp; ガード ↓ &nbsp; パンチ K &nbsp; キック L &nbsp; 必殺 ;
+      </div>
+    </div>
+
+    <!-- キャラ選択 -->
+    <div id="select" class="screen hidden">
+      <div class="pick-label" id="pickLabel">1P キャラを選択</div>
+      <div class="roster" id="roster"></div>
+      <div class="small">クリックで選択</div>
+    </div>
+
+    <!-- ログイン / 新規登録 -->
+    <div id="auth" class="screen hidden">
+      <h1 style="font-size:40px;">アカウント</h1>
+      <div class="tabrow" style="width:300px;">
+        <div class="tab on" id="tabLogin">ログイン</div>
+        <div class="tab" id="tabRegister">新規登録</div>
+      </div>
+      <div class="form">
+        <input id="inUser" type="text" placeholder="ユーザー名 (2〜16文字)" maxlength="16" autocomplete="off">
+        <input id="inPass" type="password" placeholder="パスワード (4文字以上)" maxlength="32">
+      </div>
+      <div class="msg" id="authMsg"></div>
+      <div>
+        <button class="btn" id="btnAuthSubmit">ログイン</button>
+      </div>
+      <div class="small"><button class="minibtn" id="btnAuthBack">戻る</button></div>
+    </div>
+
+    <!-- ランキング -->
+    <div id="ranking" class="screen hidden">
+      <h1 style="font-size:44px;">🏆 ランキング</h1>
+      <div id="rankBody" class="small" style="margin-top:6px;">読み込み中...</div>
+      <div style="margin-top:18px;"><button class="minibtn" id="btnRankBack" style="padding:8px 22px;">戻る</button></div>
+    </div>
+
+    <!-- 結果 -->
+    <div id="result" class="screen hidden">
+      <h1 id="resultText">WIN!</h1>
+      <button class="btn" id="btnRetry">もう一度</button>
+      <button class="btn alt" id="btnTitle">タイトルへ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== 動物データ ======
+const ANIMALS = [
+  { id:'tiger',  name:'トラ',   emoji:'🐯', color:'#ff9f43', dark:'#c46b12', hp:100, speed:3.4, jump:14, power:1.1, special:'火炎パンチ' },
+  { id:'bear',   name:'クマ',   emoji:'🐻', color:'#a87b4f', dark:'#6e4a26', hp:130, speed:2.6, jump:11, power:1.3, special:'熊掌アタック' },
+  { id:'rabbit', name:'ウサギ', emoji:'🐰', color:'#f5f0ff', dark:'#bcaad6', hp:80,  speed:4.4, jump:18, power:0.85,special:'連続キック' },
+  { id:'frog',   name:'カエル', emoji:'🐸', color:'#7ed957', dark:'#3f9e2c', hp:95,  speed:3.2, jump:16, power:1.0, special:'べろ攻撃' },
+];
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const GROUND = H - 70;
+
+// ====== 入力 ======
+const keys = {};
+addEventListener('keydown', e => {
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+  keys[e.key.toLowerCase()] = true;
+});
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// ====== ゲーム状態 ======
+let mode = '1p';          // '1p' or '2p'
+let picking = 0;          // 0:1P選択中, 1:2P選択中
+let pick1 = 0, pick2 = 0;
+let game = null;
+let roundWins = [0,0];
+let scene = 'title';
+
+// ====== Fighter クラス ======
+class Fighter {
+  constructor(animal, x, facing, isCPU){
+    this.a = animal;
+    this.x = x; this.y = GROUND;
+    this.vx = 0; this.vy = 0;
+    this.facing = facing;          // 1=右向き, -1=左向き
+    this.maxhp = animal.hp; this.hp = animal.hp;
+    this.onGround = true;
+    this.state = 'idle';           // idle, attack, hurt, special
+    this.attackTimer = 0;
+    this.attackType = null;        // punch, kick, special
+    this.hitDone = false;
+    this.cooldown = 0;
+    this.guard = false;
+    this.special = 100;            // 必殺ゲージ
+    this.hurtTimer = 0;
+    this.isCPU = isCPU;
+    this.aiTimer = 0; this.aiMove = 0;
+    this.flash = 0;
+    this.win = false;
+  }
+  get w(){ return 70; }
+  get h(){ return 96; }
+
+  attack(type){
+    if(this.cooldown>0 || this.state==='hurt' || !this.onGround) return;
+    if(type==='special' && this.special < 100) return;
+    this.state = 'attack';
+    this.attackType = type;
+    this.hitDone = false;
+    if(type==='punch'){ this.attackTimer = 16; this.cooldown = 22; }
+    if(type==='kick'){ this.attackTimer = 22; this.cooldown = 30; }
+    if(type==='special'){ this.attackTimer = 38; this.cooldown = 55; this.special = 0; this.vx = this.facing*4; }
+  }
+
+  // 攻撃の当たり判定（アクティブフレーム）
+  hitbox(){
+    if(this.state!=='attack') return null;
+    let active=false, reach=0, y=this.y-60, hh=40, dmg=0, kb=0, stun=0;
+    const t = this.attackTimer;
+    if(this.attackType==='punch'){
+      active = t<11 && t>4; reach=58; y=this.y-66; hh=26; dmg=7; kb=4; stun=14;
+    } else if(this.attackType==='kick'){
+      active = t<15 && t>6; reach=72; y=this.y-46; hh=34; dmg=11; kb=7; stun=20;
+    } else if(this.attackType==='special'){
+      active = t<26 && t>8; reach=90; y=this.y-70; hh=70; dmg=22; kb=14; stun=34;
+    }
+    if(!active) return null;
+    dmg *= this.a.power;
+    const x = this.facing===1 ? this.x+20 : this.x-20-reach;
+    return { x, y, w:reach, h:hh, dmg, kb, stun };
+  }
+
+  takeHit(box, fromFacing){
+    if(this.flash>0 && this.state==='hurt') {} // 連続ヒット許容
+    let dmg = box.dmg;
+    if(this.guard && this.onGround){
+      dmg *= 0.2;
+      this.vx = fromFacing*3;
+      this.flash = 4;
+    } else {
+      this.state = 'hurt';
+      this.hurtTimer = box.stun;
+      this.vx = fromFacing*box.kb;
+      this.vy = -box.kb*0.6;
+      this.onGround = false;
+      this.flash = 8;
+      this.cooldown = 6;
+      this.special = Math.min(100, this.special+8);
+    }
+    this.hp = Math.max(0, this.hp - dmg);
+    spawnHit((box.x+box.w/2), box.y+box.h/2, this.guard?'#8df':'#ff5');
+    return dmg;
+  }
+}
+
+// ====== ヒットエフェクト ======
+let effects = [];
+function spawnHit(x,y,color){
+  for(let i=0;i<10;i++){
+    effects.push({x,y,vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,life:18,color});
+  }
+  effects.push({x,y,vx:0,vy:0,life:12,ring:true,color});
+}
+
+// ====== ゲーム生成 ======
+function startGame(){
+  const f1 = new Fighter(ANIMALS[pick1], 260, 1, false);
+  const f2 = new Fighter(ANIMALS[pick2], W-260, -1, mode==='1p');
+  game = { f1, f2, timer: 60*60, over:false, overTimer:0, shake:0, hitstop:0 };
+  scene = 'fight';
+}
+
+// ====== 更新 ======
+function updateFighter(f, opp, ctrl){
+  // 必殺ゲージ自然回復
+  if(f.special<100) f.special = Math.min(100, f.special+0.06);
+  if(f.cooldown>0) f.cooldown--;
+  if(f.flash>0) f.flash--;
+
+  if(f.state==='hurt'){
+    f.hurtTimer--;
+    if(f.hurtTimer<=0 && f.onGround) f.state='idle';
+  }
+
+  // 入力 or AI
+  let move=0, doJump=false, doGuard=false, doPunch=false, doKick=false, doSpecial=false;
+  if(f.isCPU){
+    const ai = cpuThink(f, opp);
+    move=ai.move; doJump=ai.jump; doGuard=ai.guard;
+    doPunch=ai.punch; doKick=ai.kick; doSpecial=ai.special;
+  } else {
+    move = (keys[ctrl.right]?1:0) - (keys[ctrl.left]?1:0);
+    doJump = keys[ctrl.up];
+    doGuard = keys[ctrl.down];
+    doPunch = keys[ctrl.punch];
+    doKick = keys[ctrl.kick];
+    doSpecial = keys[ctrl.special];
+  }
+
+  const canAct = f.state!=='hurt' && f.state!=='attack';
+
+  // 向きは相手の方へ（地上アイドル時）
+  if(canAct && f.onGround){
+    f.facing = (opp.x >= f.x) ? 1 : -1;
+  }
+
+  f.guard = false;
+  if(canAct){
+    if(doGuard && f.onGround){
+      f.guard = true;
+      move = 0;
+    }
+    if(!f.guard){
+      if(move!==0){ f.vx = move * f.a.speed; f.state='idle'; }
+      else if(f.onGround){ f.vx *= 0.6; }
+      if(doJump && f.onGround){ f.vy = -f.a.jump; f.onGround=false; }
+      if(doPunch) f.attack('punch');
+      else if(doKick) f.attack('kick');
+      else if(doSpecial) f.attack('special');
+    }
+  }
+
+  // 攻撃進行
+  if(f.state==='attack'){
+    f.attackTimer--;
+    if(f.onGround && f.attackType!=='special') f.vx *= 0.7;
+    if(f.attackTimer<=0){ f.state='idle'; f.attackType=null; }
+  }
+
+  // 物理
+  f.x += f.vx;
+  f.y += f.vy;
+  if(!f.onGround){ f.vy += 0.7; }
+  if(f.y >= GROUND){ f.y=GROUND; f.vy=0; if(!f.onGround){f.onGround=true; if(f.state!=='hurt')f.state='idle';} }
+  if(f.onGround && Math.abs(f.vx)<0.3) f.vx=0;
+
+  // 画面端
+  f.x = Math.max(60, Math.min(W-60, f.x));
+}
+
+// 押し合い（重なり防止）
+function resolveOverlap(a,b){
+  const dist = Math.abs(a.x-b.x);
+  const min = 64;
+  if(dist < min){
+    const push = (min-dist)/2;
+    if(a.x < b.x){ a.x-=push; b.x+=push; } else { a.x+=push; b.x-=push; }
+    a.x=Math.max(60,Math.min(W-60,a.x));
+    b.x=Math.max(60,Math.min(W-60,b.x));
+  }
+}
+
+// ====== CPU AI ======
+function cpuThink(f, opp){
+  const out={move:0,jump:false,guard:false,punch:false,kick:false,special:false};
+  if(f.state==='hurt') return out;
+  const dx = opp.x - f.x;
+  const dist = Math.abs(dx);
+  const dir = dx>0?1:-1;
+  f.aiTimer--;
+
+  // 相手が攻撃中で近い → 一定確率でガード
+  if(opp.state==='attack' && dist<110 && Math.random()<0.35){
+    out.guard = true;
+    return out;
+  }
+
+  if(dist > 95){
+    // 接近
+    out.move = dir;
+    if(Math.random()<0.012 && f.onGround) out.jump=true;
+  } else {
+    // 攻撃間合い
+    if(f.cooldown<=0 && Math.random()<0.10){
+      if(f.special>=100 && Math.random()<0.4) out.special=true;
+      else if(Math.random()<0.5) out.kick=true;
+      else out.punch=true;
+    } else {
+      // たまに距離調整
+      if(Math.random()<0.4) out.move = -dir;
+      else if(Math.random()<0.3) out.move = dir;
+    }
+  }
+  return out;
+}
+
+// ====== 衝突処理 ======
+function checkHits(att, def){
+  const box = att.hitbox();
+  if(!box || att.hitDone) return;
+  // def本体の矩形
+  const dl = def.x-30, dr = def.x+30, dt = def.y-90, db = def.y;
+  if(box.x < dr && box.x+box.w > dl && box.y < db && box.y+box.h > dt){
+    def.takeHit(box, att.facing);
+    att.hitDone = true;
+    game.hitstop = att.attackType==='special'?10:5;
+    game.shake = att.attackType==='special'?14:7;
+  }
+}
+
+// ====== メインループ ======
+function loop(){
+  requestAnimationFrame(loop);
+  if(scene==='fight') tick();
+  render();
+}
+
+function tick(){
+  const g = game;
+  if(g.hitstop>0){ g.hitstop--; return; }
+
+  if(!g.over){
+    const c1 = {left:'a',right:'d',up:'w',down:'s',punch:'f',kick:'g',special:'h'};
+    const c2 = {left:'arrowleft',right:'arrowright',up:'arrowup',down:'arrowdown',punch:'k',kick:'l',special:';'};
+    updateFighter(g.f1, g.f2, c1);
+    updateFighter(g.f2, g.f1, c2);
+    resolveOverlap(g.f1, g.f2);
+    checkHits(g.f1, g.f2);
+    checkHits(g.f2, g.f1);
+
+    g.timer--;
+    // 決着
+    if(g.f1.hp<=0 || g.f2.hp<=0 || g.timer<=0){
+      g.over = true; g.overTimer = 90;
+      let winner;
+      if(g.f1.hp===g.f2.hp) winner=-1;
+      else winner = g.f1.hp>g.f2.hp?0:1;
+      g.winner = winner;
+      if(winner===0){ g.f1.win=true; roundWins[0]++; }
+      else if(winner===1){ g.f2.win=true; roundWins[1]++; }
+    }
+  } else {
+    g.overTimer--;
+    if(g.overTimer<=0){
+      // 2本先取
+      if(roundWins[0]>=2 || roundWins[1]>=2){
+        endMatch();
+      } else {
+        startGame(); // 次ラウンド
+      }
+    }
+  }
+
+  // エフェクト更新
+  effects.forEach(e=>{ e.x+=e.vx; e.y+=e.vy; e.vy+=0.2; e.life--; });
+  effects = effects.filter(e=>e.life>0);
+  if(g.shake>0) g.shake*=0.85;
+}
+
+function endMatch(){
+  scene='result';
+  const p1win = roundWins[0]>=2;
+  const rt = document.getElementById('resultText');
+  const draw = roundWins[0]===roundWins[1];
+  if(mode==='1p'){
+    rt.textContent = draw ? 'DRAW' : (p1win ? 'YOU WIN!' : 'YOU LOSE...');
+    rt.style.color = draw ? '#cbb' : (p1win ? '#ffd86b' : '#ff6b81');
+    reportResult(p1win, draw); // サーバーに戦績記録
+  } else {
+    rt.textContent = draw ? 'DRAW' : (p1win ? '1P WIN!' : '2P WIN!');
+    rt.style.color = '#ffd86b';
+  }
+  show('result');
+}
+
+// ====== 描画 ======
+function render(){
+  ctx.clearRect(0,0,W,H);
+  if(scene!=='fight'){ drawBackground(0); return; }
+  const g=game;
+  ctx.save();
+  const sh = g.shake||0;
+  ctx.translate((Math.random()-.5)*sh, (Math.random()-.5)*sh);
+  drawBackground();
+  drawFighter(g.f2);
+  drawFighter(g.f1);
+  drawEffects();
+  ctx.restore();
+  drawHUD();
+}
+
+function drawBackground(){
+  // 空グラデ
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#2a1a4a'); sky.addColorStop(0.6,'#5a3b7a'); sky.addColorStop(1,'#9a6b8a');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+  // 月
+  ctx.fillStyle='rgba(255,240,200,.9)';
+  ctx.beginPath(); ctx.arc(W-150,110,46,0,7); ctx.fill();
+  // 遠景の山
+  ctx.fillStyle='rgba(40,20,60,.6)';
+  for(let i=0;i<5;i++){
+    ctx.beginPath();
+    const bx=i*220-60;
+    ctx.moveTo(bx,GROUND); ctx.lineTo(bx+130,GROUND-180); ctx.lineTo(bx+260,GROUND);
+    ctx.fill();
+  }
+  // 地面
+  const gr = ctx.createLinearGradient(0,GROUND,0,H);
+  gr.addColorStop(0,'#3a2a1a'); gr.addColorStop(1,'#1a120a');
+  ctx.fillStyle=gr; ctx.fillRect(0,GROUND,W,H-GROUND);
+  ctx.fillStyle='rgba(255,255,255,.06)';
+  ctx.fillRect(0,GROUND,W,4);
+  // 闘技場ライン
+  for(let x=0;x<W;x+=60){ ctx.fillStyle='rgba(0,0,0,.15)'; ctx.fillRect(x,GROUND+20,30,2); }
+}
+
+function drawFighter(f){
+  const x=f.x, y=f.y;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(f.facing,1);
+
+  // 影
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  ctx.beginPath(); ctx.ellipse(0,2,38,10,0,0,7); ctx.fill();
+
+  // 点滅（被弾）
+  const hit = f.flash>0 && f.state==='hurt';
+  if(hit && Math.floor(f.flash/2)%2===0){ ctx.globalAlpha=0.55; }
+
+  // ガードシールド
+  if(f.guard){
+    ctx.fillStyle='rgba(120,220,255,.25)';
+    ctx.beginPath(); ctx.ellipse(20,-46,34,52,0,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(160,235,255,.8)'; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  const col=f.a.color, dk=f.a.dark;
+  const crouch = f.guard?8:0;
+  const lean = (f.state==='attack')?6:0;
+
+  // 脚
+  ctx.fillStyle=dk;
+  ctx.fillRect(-22,-30,16,30+0); // 後脚
+  ctx.fillRect(6,-30,16,30);     // 前脚
+
+  // キックの前脚を伸ばす
+  if(f.state==='attack' && f.attackType==='kick' && f.attackTimer<16 && f.attackTimer>4){
+    ctx.fillStyle=dk;
+    ctx.fillRect(20,-50,52,18);
+    ctx.fillStyle=col;
+    ctx.fillRect(64,-54,18,22); // 足先
+  }
+
+  // 胴体
+  ctx.fillStyle=col;
+  roundRect(-26, -76-crouch+lean*0+crouch, 52, 50, 12);
+  ctx.fill();
+  // お腹
+  ctx.fillStyle='rgba(255,255,255,.25)';
+  roundRect(-14,-60-crouch,28,30,8); ctx.fill();
+
+  // 腕・パンチ
+  ctx.fillStyle=col;
+  if(f.state==='attack' && (f.attackType==='punch'||f.attackType==='special') && f.attackTimer<13 && f.attackTimer>2){
+    const ext = f.attackType==='special'?64:46;
+    ctx.fillRect(10,-66-crouch,ext,16);
+    // 拳
+    if(f.attackType==='special'){
+      ctx.fillStyle='#ff5e3a';
+      ctx.beginPath(); ctx.arc(10+ext,-58-crouch,18,0,7); ctx.fill();
+      ctx.fillStyle='#ffd86b';
+      ctx.beginPath(); ctx.arc(10+ext,-58-crouch,9,0,7); ctx.fill();
+    } else {
+      ctx.fillStyle=dk;
+      ctx.beginPath(); ctx.arc(10+ext,-58-crouch,11,0,7); ctx.fill();
+    }
+  } else {
+    // 通常の腕
+    ctx.fillRect(-30,-70-crouch,12,26);
+    ctx.fillRect(18,-70-crouch,12,26);
+  }
+
+  // 頭
+  const hy = -86-crouch;
+  ctx.fillStyle=col;
+  ctx.beginPath(); ctx.arc(2,hy,26,0,7); ctx.fill();
+
+  // 耳など 動物ごと
+  drawEars(f.a.id, col, dk, hy);
+
+  // 顔
+  ctx.fillStyle='#222';
+  ctx.beginPath(); ctx.arc(-7,hy-2,4,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(11,hy-2,4,0,7); ctx.fill();
+  // 鼻/口
+  ctx.fillStyle=dk;
+  ctx.beginPath(); ctx.arc(3,hy+9,4,0,7); ctx.fill();
+
+  // 必殺中のオーラ
+  if(f.state==='attack' && f.attackType==='special'){
+    ctx.globalAlpha=0.4;
+    ctx.fillStyle='#ffb347';
+    ctx.beginPath(); ctx.arc(0,-50,60,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+
+  ctx.restore();
+}
+
+function drawEars(id,col,dk,hy){
+  ctx.fillStyle=col;
+  if(id==='tiger'){
+    ctx.beginPath(); ctx.arc(-16,hy-20,9,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(20,hy-20,9,0,7); ctx.fill();
+    // しま
+    ctx.strokeStyle=dk; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-4,hy-22); ctx.lineTo(-2,hy-12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8,hy-22); ctx.lineTo(6,hy-12); ctx.stroke();
+  } else if(id==='bear'){
+    ctx.beginPath(); ctx.arc(-16,hy-18,11,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(20,hy-18,11,0,7); ctx.fill();
+    ctx.fillStyle=dk;
+    ctx.beginPath(); ctx.arc(-16,hy-18,5,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(20,hy-18,5,0,7); ctx.fill();
+  } else if(id==='rabbit'){
+    ctx.fillStyle=col;
+    roundRect(-16,hy-46,10,32,5); ctx.fill();
+    roundRect(10,hy-46,10,32,5); ctx.fill();
+    ctx.fillStyle='#ffb6c1';
+    roundRect(-13,hy-40,4,22,2); ctx.fill();
+    roundRect(13,hy-40,4,22,2); ctx.fill();
+  } else if(id==='frog'){
+    ctx.fillStyle=col;
+    ctx.beginPath(); ctx.arc(-14,hy-22,11,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(18,hy-22,11,0,7); ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(-14,hy-22,6,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(18,hy-22,6,0,7); ctx.fill();
+    ctx.fillStyle='#222';
+    ctx.beginPath(); ctx.arc(-14,hy-22,3,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(18,hy-22,3,0,7); ctx.fill();
+  }
+}
+
+function drawEffects(){
+  effects.forEach(e=>{
+    const al = Math.max(0, e.life/18);
+    ctx.globalAlpha=al;
+    if(e.ring){
+      ctx.strokeStyle=e.color; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(e.x,e.y,(18-e.life)*2.2,0,7); ctx.stroke();
+    } else {
+      ctx.fillStyle=e.color;
+      ctx.fillRect(e.x-3,e.y-3,6,6);
+    }
+  });
+  ctx.globalAlpha=1;
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+// ====== HUD ======
+function drawHUD(){
+  const g=game;
+  // HPバー 1P（左）
+  drawHpBar(g.f1, 30, 28, false);
+  drawHpBar(g.f2, W-30-360, 28, true);
+
+  // 名前（ログイン中は1Pにユーザー名）
+  ctx.font='bold 18px sans-serif';
+  ctx.fillStyle='#fff'; ctx.textAlign='left';
+  const p1label = (mode==='1p' && auth.profile) ? auth.profile.username : (mode==='2p'?'1P':'YOU');
+  ctx.fillText(g.f1.a.emoji+' '+g.f1.a.name+' ('+p1label+')', 32, 22);
+  ctx.textAlign='right';
+  const p2label = mode==='1p' ? 'CPU' : '2P';
+  ctx.fillText('('+p2label+') '+g.f2.a.name+' '+g.f2.a.emoji, W-32, 22);
+
+  // ラウンド星
+  ctx.textAlign='left';
+  for(let i=0;i<2;i++){ ctx.fillStyle=i<roundWins[0]?'#ffd86b':'#555'; ctx.fillText('★',400+i*22,30); }
+  ctx.textAlign='right';
+  for(let i=0;i<2;i++){ ctx.fillStyle=i<roundWins[1]?'#ffd86b':'#555'; ctx.fillText('★',560-i*22,30); }
+
+  // タイマー
+  ctx.textAlign='center'; ctx.font='bold 30px sans-serif'; ctx.fillStyle='#fff';
+  ctx.fillText(Math.ceil(g.timer/60), W/2, 36);
+
+  // KO / 結果表示
+  if(g.over){
+    ctx.textAlign='center';
+    ctx.font='bold 80px sans-serif';
+    ctx.fillStyle='rgba(255,80,80,.95)';
+    let msg = g.winner===-1?'DRAW':'K.O.';
+    ctx.fillText(msg, W/2, H/2);
+  }
+}
+
+function drawHpBar(f, x, y, right){
+  const w=360, h=22;
+  ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(x-2,y-2,w+4,h+4);
+  ctx.fillStyle='#3a0a0a'; ctx.fillRect(x,y,w,h);
+  const ratio=f.hp/f.maxhp;
+  const bw=w*ratio;
+  const col = ratio>0.5?'#5ad55a':ratio>0.25?'#ffd86b':'#ff5a5a';
+  const grad=ctx.createLinearGradient(0,y,0,y+h);
+  grad.addColorStop(0,'#fff'); grad.addColorStop(0.25,col); grad.addColorStop(1,col);
+  ctx.fillStyle=grad;
+  if(right) ctx.fillRect(x+w-bw,y,bw,h);
+  else ctx.fillRect(x,y,bw,h);
+
+  // 必殺ゲージ
+  const sy=y+h+4, sh=8;
+  ctx.fillStyle='#222'; ctx.fillRect(x,sy,w,sh);
+  const sw=w*(f.special/100);
+  ctx.fillStyle=f.special>=100?'#ff7ee8':'#7e9bff';
+  if(right) ctx.fillRect(x+w-sw,sy,sw,sh); else ctx.fillRect(x,sy,sw,sh);
+  if(f.special>=100){
+    ctx.fillStyle='#fff'; ctx.font='bold 10px sans-serif';
+    ctx.textAlign=right?'right':'left';
+    ctx.fillText('必殺OK!', right?x+w:x, sy+sh+11);
+  }
+}
+
+// ====== 画面遷移 ======
+const SCREENS = ['title','select','result','auth','ranking'];
+function show(id){
+  SCREENS.forEach(s=>{
+    document.getElementById(s).classList.toggle('hidden', s!==id);
+  });
+  // 対戦中はアカウントバーを隠す（HUDと重ならないように）
+  const bar = document.getElementById('accountBar');
+  if(auth.profile && id==='title') bar.classList.remove('hidden');
+  else bar.classList.add('hidden');
+}
+function hideAll(){ SCREENS.forEach(s=>document.getElementById(s).classList.add('hidden')); }
+
+// ====== アカウント機能 ======
+const auth = { token:null, profile:null };
+let authTab = 'login';
+
+async function api(path, opts){
+  const res = await fetch(path, opts);
+  let data = {};
+  try { data = await res.json(); } catch(e){}
+  if(!res.ok) throw new Error(data.error || 'サーバーエラー');
+  return data;
+}
+
+function renderAccountBar(){
+  const bar = document.getElementById('accountBar');
+  if(auth.profile){
+    bar.classList.remove('hidden');
+    document.getElementById('accWho').textContent = '👤 ' + auth.profile.username;
+    const p = auth.profile;
+    document.getElementById('accRec').textContent =
+      `${p.wins}勝 ${p.losses}敗 ${p.draws}分 (勝率${p.rate}%)`;
+    document.getElementById('btnAccount').textContent = 'アカウント情報';
+  } else {
+    bar.classList.add('hidden');
+    document.getElementById('btnAccount').textContent = 'ログイン / 新規登録';
+  }
+}
+
+function setAuthTab(tab){
+  authTab = tab;
+  document.getElementById('tabLogin').classList.toggle('on', tab==='login');
+  document.getElementById('tabRegister').classList.toggle('on', tab==='register');
+  document.getElementById('btnAuthSubmit').textContent = tab==='login' ? 'ログイン' : '登録する';
+  document.getElementById('authMsg').textContent = '';
+}
+
+async function submitAuth(){
+  const username = document.getElementById('inUser').value;
+  const password = document.getElementById('inPass').value;
+  const msg = document.getElementById('authMsg');
+  msg.className = 'msg'; msg.textContent = '送信中...';
+  try {
+    const data = await api('/api/'+(authTab==='login'?'login':'register'), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, password})
+    });
+    auth.token = data.token; auth.profile = data.profile;
+    localStorage.setItem('kemono_token', data.token);
+    renderAccountBar();
+    msg.className='msg ok'; msg.textContent = 'ようこそ、'+data.profile.username+' さん！';
+    setTimeout(()=>{ scene='title'; show('title'); }, 600);
+  } catch(e){
+    msg.className='msg'; msg.textContent = e.message;
+  }
+}
+
+async function doLogout(){
+  if(auth.token){
+    try { await api('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:auth.token})}); } catch(e){}
+  }
+  auth.token=null; auth.profile=null;
+  localStorage.removeItem('kemono_token');
+  renderAccountBar();
+}
+
+// 起動時：保存トークンで自動ログイン
+async function restoreSession(){
+  const t = localStorage.getItem('kemono_token');
+  if(!t) return;
+  try {
+    const data = await api('/api/me?token='+encodeURIComponent(t));
+    auth.token=t; auth.profile=data.profile; renderAccountBar();
+  } catch(e){ localStorage.removeItem('kemono_token'); }
+}
+
+// 1人プレイの結果をサーバーに記録
+async function reportResult(playerWon, draw){
+  if(!auth.token || mode!=='1p') return;
+  const result = draw ? 'draw' : (playerWon ? 'win' : 'lose');
+  try {
+    const data = await api('/api/result',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({token:auth.token, result})
+    });
+    auth.profile = data.profile; renderAccountBar();
+  } catch(e){ /* 記録失敗は無視 */ }
+}
+
+// ランキング表示
+async function showRanking(){
+  show('ranking');
+  const body = document.getElementById('rankBody');
+  body.textContent = '読み込み中...';
+  try {
+    const data = await api('/api/ranking');
+    if(!data.ranking.length){ body.textContent = 'まだ登録者がいません'; return; }
+    let html = '<table class="rank"><tr><th>順位</th><th>プレイヤー</th><th>勝</th><th>敗</th><th>勝率</th></tr>';
+    data.ranking.forEach((r,i)=>{
+      const mine = auth.profile && r.username===auth.profile.username ? ' class="mine"' : '';
+      const medal = ['🥇','🥈','🥉'][i] || (i+1);
+      html += `<tr${mine}><td class="rk">${medal}</td><td>${escapeHtml(r.username)}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.rate}%</td></tr>`;
+    });
+    html += '</table>';
+    body.innerHTML = html;
+  } catch(e){ body.textContent = 'サーバーに接続できません（server.js を起動してください）'; }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// キャラ選択画面構築
+function buildRoster(){
+  const r=document.getElementById('roster');
+  r.innerHTML='';
+  ANIMALS.forEach((a,i)=>{
+    const c=document.createElement('div');
+    c.className='card';
+    c.innerHTML=`
+      <div class="emoji">${a.emoji}</div>
+      <div class="nm">${a.name}</div>
+      <div class="stat">HP<div class="bar"><i style="width:${a.hp/130*100}%"></i></div></div>
+      <div class="stat">速さ<div class="bar"><i style="width:${a.speed/4.4*100}%"></i></div></div>
+      <div class="stat">力<div class="bar"><i style="width:${a.power/1.3*100}%"></i></div></div>
+      <div class="stat" style="color:#ffd86b">必殺:${a.special}</div>`;
+    c.onclick=()=>pickChar(i);
+    r.appendChild(c);
+  });
+}
+
+function pickChar(i){
+  if(picking===0){
+    pick1=i;
+    if(mode==='1p'){
+      // CPUはランダム
+      pick2=Math.floor(Math.random()*ANIMALS.length);
+      beginMatch();
+    } else {
+      picking=1;
+      document.getElementById('pickLabel').textContent='2P キャラを選択';
+    }
+  } else {
+    pick2=i;
+    beginMatch();
+  }
+}
+
+function beginMatch(){
+  roundWins=[0,0];
+  hideAll();
+  startGame();
+}
+
+// ====== ボタン ======
+document.getElementById('btn1p').onclick=()=>{ mode='1p'; picking=0; document.getElementById('pickLabel').textContent='キャラを選択'; buildRoster(); show('select'); };
+document.getElementById('btn2p').onclick=()=>{ mode='2p'; picking=0; document.getElementById('pickLabel').textContent='1P キャラを選択'; buildRoster(); show('select'); };
+document.getElementById('btnRetry').onclick=()=>{ beginMatch(); };
+document.getElementById('btnTitle').onclick=()=>{ scene='title'; show('title'); };
+
+// アカウント系ボタン
+document.getElementById('btnAccount').onclick=()=>{
+  document.getElementById('inUser').value='';
+  document.getElementById('inPass').value='';
+  setAuthTab('login');
+  show('auth');
+};
+document.getElementById('tabLogin').onclick=()=>setAuthTab('login');
+document.getElementById('tabRegister').onclick=()=>setAuthTab('register');
+document.getElementById('btnAuthSubmit').onclick=submitAuth;
+document.getElementById('btnAuthBack').onclick=()=>{ scene='title'; show('title'); };
+document.getElementById('inPass').addEventListener('keydown', e=>{ if(e.key==='Enter') submitAuth(); });
+document.getElementById('btnRanking').onclick=showRanking;
+document.getElementById('btnRankBack').onclick=()=>{ scene='title'; show('title'); };
+document.getElementById('accLogout').onclick=doLogout;
+
+// 起動
+buildRoster();
+renderAccountBar();
+restoreSession();
+loop();
+</script>
+</body>
+</html>
